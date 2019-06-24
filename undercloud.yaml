@@ -1,0 +1,96 @@
+---
+- hosts: openstack
+  vars:
+          openstack_version: rocky
+
+          # password with:
+          # python -c 'import crypt; print crypt.crypt("12345678", "$1$SomeSalt$")'
+          stack_password: "$1$SomeSalt$iIsfd7JyWz5Ikw7WANfpO/"
+  tasks:
+          - name: "Upgrade all packages"
+            yum: 
+              name: '*' 
+              state: latest
+   
+          - name: "Rebooting ..."
+            reboot:
+
+          - name: "Install epel-release"
+            yum: 
+              state: latest 
+              name: epel-release
+
+          - name: "Add required base packages"
+            yum: 
+              state: latest 
+              name: 
+                - vim
+                - wget
+                - mc 
+                - htop
+                - ntp
+                - yum-plugin-priorities
+                - python-requests
+
+          - name: "Stop service firewalld, if started"
+            service: 
+              name: firewalld 
+              state: stopped 
+              enabled: no
+
+          - name: "Install tripleo-repos"
+            yum: 
+              name: https://trunk.rdoproject.org/centos7/current/python2-tripleo-repos-0.0.1-0.20190612102512.9b3187e.el7.noarch.rpm 
+              state: latest
+
+          - name: 'Prepare tripleo-repos'
+            shell: tripleo-repos -b {{ openstack_version }} current
+
+          - name: "Install python-tripleoclient"
+            yum: 
+              state: latest 
+              name: python-tripleoclient
+
+          - name: "Create user stack"
+            user:
+              name: stack
+              password: "{{ stack_password }}"
+
+          - name: "Create file"
+            file:
+              path: /etc/sudoers.d/stack
+              state: touch
+              owner: root
+              group: root
+              mode: '0440'
+
+          - name: "Add stack to sudoers"
+            copy: content="stack ALL=(root) NOPASSWD:ALL" dest=/etc/sudoers.d/stack
+
+          - name: "Create directory"
+            file:
+              path: /home/stack/images
+              state: directory
+              owner: stack
+              mode: 0775
+
+          - name: "Download overcloud full image"
+            unarchive:
+              src: https://images.rdoproject.org/master/delorean/current-tripleo/overcloud-full.tar
+              dest: /home/stack/images
+              mode: 0644
+              owner: stack
+              group: stack
+              remote_src: yes
+
+          - name: "Download overcloud ironic agent image"
+            unarchive:
+              src:  https://images.rdoproject.org/master/delorean/current-tripleo/ironic-python-agent.tar
+              dest: /home/stack/images
+              mode: 0644
+              owner: stack
+              group: stack
+              remote_src: yes
+
+
+
